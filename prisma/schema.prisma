@@ -1,0 +1,275 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  PLAYER
+  PARENT
+  CHURCH_ADMIN
+  CONTENT_EDITOR
+  BIBLICAL_REVIEWER
+  PLATFORM_ADMIN
+}
+
+enum AgeBand {
+  LITTLE_EXPLORERS_4_6
+  YOUNG_ADVENTURERS_7_9
+  QUEST_MASTERS_10_12
+  TEEN_CHALLENGERS_13_17
+  ADULT_EXPLORERS_18_35
+  WISDOM_LEAGUE_36_PLUS
+}
+
+enum ContentCategory {
+  OLD_TESTAMENT
+  NEW_TESTAMENT
+  BIBLE_CHARACTERS
+  BIBLE_HISTORY
+  BIBLICAL_GEOGRAPHY
+  BIBLE_TEACHINGS
+  SCRIPTURE_MEMORY
+  CHRISTIAN_LIVING
+  BIBLE_MYSTERIES
+  BIBLICAL_WISDOM
+}
+
+enum EpistemologyTier {
+  TIER_1_CORE_FACT
+  TIER_2_HISTORICAL_CONTEXT
+  TIER_3_INTERPRETIVE_DOCTRINAL
+}
+
+enum EditorialStatus {
+  DRAFT
+  BIBLICAL_REVIEW
+  AGE_REVIEW
+  LINGUISTIC_PLAYTEST
+  PUBLISHED
+}
+
+enum CollectibleType {
+  BIBLE_CHARACTER
+  BIBLICAL_LOCATION
+  IMPORTANT_EVENT
+  BIBLICAL_OBJECT
+  BOOK_OF_BIBLE
+  HISTORICAL_TIMELINE
+}
+
+enum RarityLevel {
+  COMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+enum TournamentStatus {
+  LOBBY
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  passwordHash      String
+  displayName       String
+  role              UserRole  @default(PLAYER)
+  countryCode       String    @default("NG")
+  language          String    @default("en")
+  xp                Int       @default(0)
+  level             Int       @default(1)
+  kingdomCoins      Int       @default(0)
+  eloRating         Int       @default(1200)
+  currentStreak     Int       @default(0)
+  lastActiveDate    DateTime?
+  streakGraceUsedAt DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  familyGroups      FamilyGroup[]
+  churchMemberships ChurchMembership[]
+  sermonNotes       SermonNote[]
+  collectibles      UserCollectible[]
+}
+
+model FamilyGroup {
+  id           String         @id @default(cuid())
+  name         String
+  inviteCode   String         @unique
+  parentUserId String
+  parentUser   User           @relation(fields: [parentUserId], references: [id], onDelete: Cascade)
+  createdAt    DateTime       @default(now())
+  children     ChildProfile[]
+}
+
+model ChildProfile {
+  id                String      @id @default(cuid())
+  familyGroupId     String
+  familyGroup       FamilyGroup @relation(fields: [familyGroupId], references: [id], onDelete: Cascade)
+  nickname          String
+  ageBand           AgeBand
+  parentPinHash     String
+  isChildSafeLocked Boolean     @default(true)
+  parentalConsentAt DateTime
+  xp                Int         @default(0)
+  level             Int         @default(1)
+  kingdomCoins      Int         @default(0)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+}
+
+model ChurchOrganization {
+  id          String             @id @default(cuid())
+  name        String
+  countryCode String             @default("NG")
+  planTier    String             @default("FREE_BASIC")
+  verifiedAt  DateTime?
+  createdAt   DateTime           @default(now())
+  memberships ChurchMembership[]
+  tournaments Tournament[]
+}
+
+model ChurchMembership {
+  id        String             @id @default(cuid())
+  userId    String
+  churchId  String
+  role      String             @default("MEMBER")
+  joinedAt  DateTime           @default(now())
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  church    ChurchOrganization @relation(fields: [churchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, churchId])
+}
+
+model Question {
+  id               String           @id @default(cuid())
+  category         ContentCategory
+  epistemologyTier EpistemologyTier
+  questionText     String
+  correctAnswer    String?
+  distractors      Json?
+  perspectivesJson Json?
+  difficulty       Int              @default(1)
+  ageSuitability   AgeBand          @default(ADULT_EXPLORERS_18_35)
+  bibleBook        String
+  chapter          Int
+  verse            String
+  bibleTranslation String           @default("KJV")
+  explanation      String
+  editorialStatus  EditorialStatus  @default(DRAFT)
+  language         String           @default("en")
+  reviewHistory    Json             @default("[]")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([category, editorialStatus, language])
+}
+
+model DetectiveCase {
+  id              String          @id @default(cuid())
+  title           String
+  synopsis        String
+  cluesJson       Json
+  scriptureRefs   Json
+  editorialStatus EditorialStatus @default(DRAFT)
+  language        String          @default("en")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model AdventureCampaign {
+  id              String          @id @default(cuid())
+  slug            String          @unique
+  title           String
+  description     String
+  heroCharacter   String
+  isPremiumPack   Boolean         @default(false)
+  chaptersJson    Json
+  editorialStatus EditorialStatus @default(DRAFT)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model CollectibleCard {
+  id               String            @id @default(cuid())
+  type             CollectibleType
+  name             String
+  description      String
+  bibleRefs        Json
+  interestingFacts Json
+  rarity           RarityLevel       @default(COMMON)
+  illustrationUrl  String?
+  users            UserCollectible[]
+}
+
+model UserCollectible {
+  id         String          @id @default(cuid())
+  userId     String
+  cardId     String
+  unlockedAt DateTime        @default(now())
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card       CollectibleCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cardId])
+}
+
+model BibleTranslation {
+  id          String       @id @default(cuid())
+  code        String       @unique
+  name        String
+  language    String       @default("en")
+  licenseNote String
+  verses      BibleVerse[]
+}
+
+model BibleVerse {
+  id            String           @id @default(cuid())
+  translationId String
+  book          String
+  chapter       Int
+  verse         Int
+  text          String
+  translation   BibleTranslation @relation(fields: [translationId], references: [id], onDelete: Cascade)
+
+  @@unique([translationId, book, chapter, verse])
+  @@index([book, chapter])
+}
+
+model SermonNote {
+  id            String   @id @default(cuid())
+  userId        String
+  title         String
+  speaker       String?
+  churchOrgId   String?
+  serviceDate   DateTime @default(now())
+  scriptureRefs Json     @default("[]")
+  body          String
+  tags          Json     @default("[]")
+  isPrivate     Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Tournament {
+  id          String              @id @default(cuid())
+  title       String
+  mode        String
+  joinCode    String              @unique
+  churchOrgId String?
+  churchOrg   ChurchOrganization? @relation(fields: [churchOrgId], references: [id], onDelete: SetNull)
+  category    ContentCategory?
+  difficulty  Int                 @default(2)
+  maxPlayers  Int                 @default(50)
+  status      TournamentStatus    @default(LOBBY)
+  scheduledAt DateTime?
+  createdAt   DateTime            @default(now())
+}
+
